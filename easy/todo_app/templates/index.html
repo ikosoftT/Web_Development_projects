@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Todo App - Built inside 1337</title>
+    <!-- Start css file Tailwind -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- End css file Tailwind -->
+</head>
+
+<body class="bg-slate-900 flex justify-center items-start min-h-screen font-sans p-4 sm:p-6 md:p-8">
+    <div class="app w-full max-w-2xl space-y-6">
+        <div class="title flex items-center justify-between">
+            <h1 class="text-3xl font-bold text-white">TASKS MUST BE DONE</h1>
+        </div>
+        <form id="todo-form" class="flex gap-3">
+            <input type="text" id="todo-input" placeholder="enter task..." class="flex-grow p-3 bg-white/20 border-white/20 rounded-lg text-white placeholder-slate-300
+            focus:ring-2 pl-4 focus:ring-sky-400 focus:outline-none transition">
+            <button type="submit"
+                class=" cursor-pointer bg-sky-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-sky-600 transition-colors disabled:bg-sky-300/50 flex-shrink-0">Add</button>
+        </form>
+        <div class="relative">
+            <input type="text" id="search-input" placeholder="search a task..."
+                class="w-full p-3  backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl bg-white/20 border border-white/20 rounded-lg text-white placeholder-slate-300">
+
+        </div>
+        <div
+            class="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 h-96 flex-col overflow-auto">
+            <div id="list-container" class="flex-grow overflow-auto pr-2">
+                <div id="todo-list" class="space-y-4"></div>
+                <div id="empty-state" class="text-center p-8 hidden"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const form = document.querySelector("#todo-form");
+            const todo_input = document.querySelector("#todo-input");
+            const search_input = document.querySelector("#search-input");
+            const todo_list = document.querySelector("#todo-list");
+            const empty_state = document.querySelector("#empty-state");
+
+
+            // Functional logic. 
+            let todos = [];
+
+            // Async function: hadii radi t fetch data like an api
+
+            const fetchTasks = async () => {
+                try {
+                    const response = await fetch("/api/todos");
+                    todos = await response.json();
+                    renderTasks();
+                } catch (err) {
+                    console.log(`I catched an err :${err}`);
+                }
+            }
+            // Save data li jaya mn UI.
+            const saveTasks = async () => {
+                try {
+                    const response = await fetch("/api/todos", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(todos),
+                    });
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                } catch (err) {
+                    console.error(`Error while saving tasks: ${err}`);
+                }
+            }
+            // hna radi n cree untask, b js
+            const createTaskItem = (task) => {
+                const item = document.createElement("div");
+                item.className = "flex items-center bg-slate-800/60 backdrop-blur-sm border border-white/20 p-4 rounded-xl shadow-lg group";
+                item.dataset.id = task.id;
+
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = task.completed;
+                checkbox.className = "todo-checkbox h-5 w-5 rounded-md border-gray-400 bg-white/20 text-sky-400 focus:ring-sky-400/50 cursor-pointer flex-shrink-0";
+
+                const text = document.createElement("span");
+                text.className = `todo-text flex-grow ml-4 text-slate-100 ${task.completed ? "line-through text-slate-400" : ""} cursor-pointer`;
+                text.textContent = task.text;
+
+                const deleteButton = document.createElement("button");
+                deleteButton.type = "button";
+                deleteButton.className = "delete-btn text-slate-400 hover:text-red-500 font-bold ml-4 transition-colors flex-shrink-0";
+                deleteButton.textContent = "x";
+
+                item.append(checkbox, text, deleteButton);
+                return item;
+            }
+            const renderTasks = () => {
+
+                todo_list.innerHTML = "";
+                const sortedTask = [...todos].sort((a, b) => b.createdAt - a.createdAt);
+
+                const searchTerm = search_input.value.toLowerCase();
+                const filterTasks = sortedTask.filter(task => task.text.toLowerCase().includes(searchTerm));
+
+                const groupedTasks = filterTasks.reduce((groups, todo) => {
+                    const date = new Date(todo.createdAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                    });
+
+                    if (!groups[date]) {
+                        groups[date] = [];
+                    }
+                    groups[date].push(todo);
+                    return groups;
+                }, {})
+                const dataKeys = Object.keys(groupedTasks);
+                if (dataKeys.length === 0) {
+                    empty_state.classList.remove("hidden");
+                    if (searchTerm) {
+                        empty_state.innerHTML = `
+                            <p class="text-slate-300">Task not found!</p>
+                        `;
+                    } else {
+                        empty_state.innerHTML = `
+                            <p class="text-slate-300 text-lg">Your list is clear!.</p>
+                        `;
+
+                    }
+                } else {
+                    empty_state.classList.add("hidden");
+                    dataKeys.forEach(date => {
+                        const dataHeader = document.createElement("h2");
+                        dataHeader.className = "text-lg font-bold text-slate-300 mb-2 sticky top-0 bg-slate-800/50 backdrop-blur-sm py-1";
+
+                        dataHeader.textContent = date;
+                        todo_list.appendChild(dataHeader);
+
+                        groupedTasks[date].forEach(task => {
+                            const item = createTaskItem(task);
+                            todo_list.appendChild(item);
+                        })
+
+                    })
+                }
+            }
+            form.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const text = todo_input.value.trim();
+                if (text) {
+                    const newTask = {
+                        id: `todo_${Date.now()}`,
+                        text: text,
+                        completed: false,
+                        createdAt: Date.now(),
+                    };
+                    todos.push(newTask);
+                    todo_input.value = "";
+                    search_input.value = "";
+                    renderTasks();
+                    saveTasks();
+                }
+            });
+            search_input.addEventListener("input", renderTasks);
+
+            todo_list.addEventListener("click", (e) => {
+                const parent = e.target.closest("[data-id]");
+
+                if (!parent) return;
+                const taskId = parent.dataset.id;
+                const taskData = todos.find(t => t.id == taskId);
+
+                if (!taskData) return;
+
+                if (e.target.classList.contains("todo-checkbox")) {
+                    taskData.completed = e.target.checked;
+                    renderTasks();
+                    saveTasks();
+                }
+                if (e.target.classList.contains("delete-btn")) {
+                    todos = todos.filter(t => t.id !== taskId);
+                    renderTasks();
+                    saveTasks();
+                }
+                if (e.target.classList.contains("todo-text")) {
+                    const textSpan = e.target;
+                    if (textSpan.isContentEditable) return;
+
+                    textSpan.isContentEditable = true;
+                    textSpan.focus();
+                    document.execCommand("selectAll", false, null);
+
+                    const onFinishEditing = () => {
+                        textSpan.isContentEditable = false;
+                        const newText = textSpan.textContent.trim();
+                        if (newText && newText !== taskData.text) {
+                            taskData.text = newText;
+                            saveTasks();
+                        }
+                        renderTasks();
+                    }
+                    textSpan.addEventListener("blur", onFinishEditing, { once: true });
+                    textSpan.addEventListener("keydown", (keyEvent) => {
+
+                        if (keyEvent.key == "Enter") {
+                            keyEvent.preventDefault();
+                            textSpan.blur();
+                        } else if (keyEvent.key == "Escape") {
+                            textSpan.textContent = taskData.text;
+                            textSpan.blur();
+                        }
+                    })
+                }
+            })
+            fetchTasks();
+        });
+    </script>
+</body>
+
+</html>
